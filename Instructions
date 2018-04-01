@@ -1,0 +1,7 @@
+Compile Async_io and Data Send Only:-
+
+g++ -I Headers/ Defense_and_PID.cpp Headers/grSim_Packet.pb.cc Headers/grSim_Commands.pb.cc Headers/grSim_Replacement.pb.cc -lboost_system -lboost_thread -lprotobuf -pthread
+
+Compile Async_io + Datasend and Recieve:-
+
+g++ -I Headers/ Defense_and_PID.cpp Headers/grSim_Packet.pb.cc Headers/grSim_Commands.pb.cc Headers/grSim_Replacement.pb.cc Headers/robocup_ssl_client.cpp Headers/messages_robocup_ssl_wrapper.pb.cc Headers/messages_robocup_ssl_geometry.pb.cc Headers/messages_robocup_ssl_detection.pb.cc Headers/netraw.cpp -lboost_system -lboost_thread -lprotobuf -pthread
