@@ -24,6 +24,8 @@ boost::system::error_code err;
 grSim_Packet send_packet;
 grSim_Robot_Command* command;
 double x_vel,y_vel,w_vel,angle,angle_between_bot_and_ball;
+//Keeper Solo Play
+bool keeper_in_position = false;
 
 
 
@@ -55,7 +57,7 @@ pid pid_X(0.002,0.001,0.0),pid_Y(0.0007,0.001,0.0),pid_W(0.03,0.0,0.005);
 
 //Overload == operator for comparision of robot positions
 bool operator==(const SSL_DetectionRobot& p1, const SSL_DetectionRobot& p2){
-	if(abs(p1.x()-p2.x())<=20 && abs(p1.y()-p2.y())<=20)
+	if(abs(p1.x()-p2.x())<=10 && abs(p1.y()-p2.y())<=10)
 		return true;
 	return false;
 }
@@ -65,34 +67,6 @@ double calc_angle_between_points(double x1,double y1,double x2,double y2){
 	if(x2 - x1 != 0)
 		return atan2(y2-y1,x2-x1);
 	return 0;
-}
-
-//Keeper Solo Play
-bool keeper_in_position = false;
-void keeper_solo_play(){
-	//first check if keeper is in the semicircle
-	if(!keeper_in_position){
-		// for yellow team
-		keeper_robot_pos.set_x(3000);
-		keeper_robot_pos.set_y(0);
-		bool reached = false;
-		while(!reached){
-			detection = recieve_packet.detection();
-			ball = detection.balls(0);			
-			tracking_robot_pos = detection.robots_yellow(0);//Send robot-1 near the ball
-			printf("Bot Position:(%3.2f,%3.2f)  ",tracking_robot_pos.x(),tracking_robot_pos.y());
-			if(tracking_robot_pos == destination_robot_pos) reached = true;
-			angle = tracking_robot_pos.orientation() * 180/PI;
-			angle_between_bot_and_ball = calc_angle_between_points(3000,0,tracking_robot_pos.x(),tracking_robot_pos.y());
-			printf("  bot angle: %3.2f  ",angle_between_bot_and_ball);
-			if(angle >= -180.0 && angle <= -0.0) angle += 360.0; 
-			x_vel = pid_X.calculate(0.0,tracking_robot_pos.x());
-			y_vel = pid_Y.calculate(0.0,tracking_robot_pos.y());
-			w_vel = pid_W.calculate(angle_between_bot_and_ball,angle);
-			printf("PidX: %3.2f  PidY: %3.2f  PidW: %3.2f",x_vel,y_vel,w_vel);
-			//send_data();
-		}
-	}
 }
 
 int main(){	    
@@ -106,8 +80,53 @@ int main(){
     client.open(true);
 	//Server Correctly Connected
 	
+	//call keeper Solo Play
+	command->set_id(0);
+	if(!keeper_in_position){
+		// for yellow team
+		keeper_robot_pos.set_x(3000);
+		keeper_robot_pos.set_y(0);
+		while(!keeper_in_position){
+			detection = recieve_packet.detection();
+			ball = detection.balls(0);			
+			tracking_robot_pos = detection.robots_yellow(0);//Send robot-1 near the ball
+			//printf("Bot Position:(%3.2f,%3.2f)  ",tracking_robot_pos.x(),tracking_robot_pos.y());
+			if(tracking_robot_pos == destination_robot_pos) keeper_in_position = true;
+			angle = tracking_robot_pos.orientation() * 180/PI;
+			angle_between_bot_and_ball = calc_angle_between_points(3000,0,tracking_robot_pos.x(),tracking_robot_pos.y());
+			printf("Bot angle: %3.2f  ",angle_between_bot_and_ball);
+			if(angle >= -180.0 && angle <= -0.0) angle += 360.0; 
+			x_vel = pid_X.calculate(3000.0,tracking_robot_pos.x());
+			y_vel = pid_Y.calculate(0.0,tracking_robot_pos.y());
+			w_vel = pid_W.calculate(angle_between_bot_and_ball,angle);
+			printf("PidX: %3.2f  PidY: %3.2f  PidW: %3.2f\n",x_vel,y_vel,w_vel);
+			send_packet.mutable_commands()->set_isteamyellow(true);
+			send_packet.mutable_commands()->set_timestamp(0.0);
+			command = send_packet.mutable_commands()->add_robot_commands();
+			command->set_wheelsspeed(false); //ambiguous
+			command->set_veltangent(x_vel); //change
+			command->set_velnormal(y_vel);
+			if(abs(90.0 - angle) < 180.0)
+			command->set_velangular(-w_vel);
+			else command->set_velangular(w_vel);
+			command->set_velangular(0.0);
+			command->set_kickspeedx(0.0);
+			command->set_kickspeedz(0.0);
+			command->set_spinner(false);		
+			
+			send_packet.SerializeToOstream(&stream);
+			
+			//Send the Command
+			std::string data = stream.str();
+			//std::cout<<"str: "<<stream.str()<<"\n";	
+			socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);			
+		}
+		printf("Exiting\n");
+	}
+
+
 	//Start fetching data from the detected packet	
-	bool reached = false;
+/*	bool reached = false;
 	while(!reached){
 		if (!client.receive(recieve_packet)){
 			printf("Connection to Server Unsuccessful!!\n");
@@ -129,10 +148,7 @@ int main(){
 		send_packet.mutable_commands()->set_isteamyellow(true);
 		send_packet.mutable_commands()->set_timestamp(0.0);
 		command = send_packet.mutable_commands()->add_robot_commands();
-		//call keeper Solo Play
-//		keeper_solo_play();		
-		//Only id's are set outside
-		command->set_id(0);
+		
 
 		angle = tracking_robot_pos.orientation() * 180/PI;
 		angle_between_bot_and_ball = calc_angle_between_points(3000,0,tracking_robot_pos.x(),tracking_robot_pos.y());
@@ -142,7 +158,7 @@ int main(){
 		y_vel = pid_Y.calculate(0.0,tracking_robot_pos.y());
 		w_vel = pid_W.calculate(angle_between_bot_and_ball,angle);
 		printf("PidX: %3.2f  PidY: %3.2f  PidW: %3.2f",x_vel,y_vel,w_vel);
-		
+
 		command->set_wheelsspeed(false); //ambiguous
 		command->set_veltangent(x_vel); //change
 		command->set_velnormal(y_vel);
@@ -166,11 +182,11 @@ int main(){
 		if(angle >= -180.0 && angle <= -0.0) angle += 360.0; 
 		x_vel = pid_X.calculate(0.0,tracking_robot_pos.x());
 		y_vel = pid_Y.calculate(0.0,tracking_robot_pos.y());
-		w_vel = pid_W.calculate(360.0,angle);
-*/		
+		w_vel = pid_W.calculate(360.0,angle);		
 //		printf("PidX: %3.2f  PidY: %3.2f  PidW: %3.2f",x_vel,y_vel,w_vel);
 		std::cout<<"\n";
 	}
+*/
 	printf("\nExiting\n");
 	socket.close();
 	return 0;
