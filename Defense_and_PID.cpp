@@ -52,7 +52,7 @@ class pid{
 			return val_pid;
 		}
 };
-pid pid_X(0.002,0.001,0.0),pid_Y(0.0007,0.001,0.0),pid_W(0.03,0.0,0.005);
+pid pid_X(0.002,0.001,0.0),pid_Y(0.0007,0.001,0.0),pid_W(0.03,0.0,0.0);
 
 //Overload == operator for comparision of robot positions
 bool operator==(const SSL_DetectionRobot& p1, const SSL_DetectionRobot& p2){
@@ -70,9 +70,9 @@ double calc_angle_between_points(double x1,double y1,double x2,double y2){
 
 double calc_angle_between_lines(double x1,double y1,double x2,double y2){
 	double angle1 = calc_angle_between_points(0.0,0.0,x1,y1);
-	double angle2 = calc_angle_between_points(0.0,0.0,x2,y2);
+	double angle2 = calc_angle_between_points(x2,y2,0.0,0.0);
 	//printf("angle1:%3.2f angle2:%3.2f  ",angle1,angle2);
-	return angle1 - angle2;
+	return abs(angle1 - angle2);
 }
 
 int main(){	    
@@ -85,7 +85,6 @@ int main(){
     printf("Connecting to Multicast Server......\n");
     client.open(true);
 	//Server Correctly Connected
-/*
     while(!keeper_in_position){
 		if (!client.receive(recieve_packet)){
 			printf("Connection to Server Unsuccessful!!\n");
@@ -136,7 +135,7 @@ int main(){
 		socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);
 		std::cout<<"\n";
 	}
-	printf("Keeper in Position\n");*/
+	printf("Keeper in Position\n");
 	// Keeper in Position protect the ball
 	while(true){
 		if (!client.receive(recieve_packet)){
@@ -167,15 +166,26 @@ int main(){
 		angle = fmod((angle+450),360.0);
 //		printf("angle2: %3.2f\n",angle);		
 		angle_between_bot_and_ball = calc_angle_between_lines(ball.x(),ball.y(),tracking_robot_pos.x(),tracking_robot_pos.y()); 
-		printf(" angle:%3.2f ",angle_between_bot_and_ball);
-		x_vel = pid_X.calculate(3000.0,tracking_robot_pos.x());
-		y_vel = pid_Y.calculate(0.0,tracking_robot_pos.y());
+//		printf(" angle:%3.2f ",angle_between_bot_and_ball);
+		
+		double m = (ball.y() - 0.0)/(ball.x() - 4000.0);
+		m = m*m; //Since i always need m^2
+		double x_to_go = 4000.0 - (800.0/sqrt(1.0+m));//where 4000.0 is the center of goal post and 1000.0 is the radius of semicircle
+		double y_to_go = 0.0 - (800.0/sqrt(1.0+(1.0/m)));//y can be +/- based on conditions
+		if(ball.y()>0.0) y_to_go = 0.0 + (800.0/sqrt(1.0+(1.0/m)));
+		else y_to_go = 0.0 - (800.0/sqrt(1.0+(1.0/m)));
+		printf("x:%3.2f y:%3.2f ",x_to_go,y_to_go);
+
+		x_vel = pid_X.calculate(x_to_go,tracking_robot_pos.x());
+		y_vel = pid_Y.calculate(y_to_go,tracking_robot_pos.y());
 		w_vel = pid_W.calculate(angle_between_bot_and_ball,angle);
-		printf("PidX: %3.2f  PidY: %3.2f  PidW: %3.2f ",x_vel,y_vel,w_vel);
+		printf("PidX:%3.2f  PidY:%3.2f  PidW:%3.2f ",x_vel,y_vel,w_vel);
 		command->set_wheelsspeed(false);
-		command->set_veltangent(0.0); 
-		command->set_velnormal(0.0);
-		command->set_velangular(w_vel);
+		command->set_veltangent(x_vel); 
+		command->set_velnormal(y_vel);
+/*		if(x_vel <= 0.1 && y_vel <= 0.1)
+		command->set_velangular(-w_vel);
+		else */command->set_velangular(0.0);
 		command->set_kickspeedx(0.0);
 		command->set_kickspeedz(0.0);
 		command->set_spinner(false);		
