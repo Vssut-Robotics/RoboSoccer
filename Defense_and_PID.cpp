@@ -70,7 +70,7 @@ double calc_angle_between_points(double x1,double y1,double x2,double y2){
 
 double calc_angle_between_lines(double x1,double y1,double x2,double y2){
 	double angle1 = calc_angle_between_points(0.0,0.0,x1,y1);
-	double angle2 = calc_angle_between_points(x2,y2,0.0,0.0);
+	double angle2 = calc_angle_between_points(0.0,0.0,x2,y2);
 	//printf("angle1:%3.2f angle2:%3.2f  ",angle1,angle2);
 	return abs(angle1 - angle2);
 }
@@ -123,7 +123,7 @@ int main(){
 		if(abs(90.0 - angle) < 180.0)
 		command->set_velangular(-w_vel);
 		else command->set_velangular(w_vel);
-		command->set_velangular(0.0);
+		//command->set_velangular(0.0);
 		command->set_kickspeedx(0.0);
 		command->set_kickspeedz(0.0);
 		command->set_spinner(false);		
@@ -183,9 +183,11 @@ int main(){
 		command->set_wheelsspeed(false);
 		command->set_veltangent(x_vel); 
 		command->set_velnormal(y_vel);
-/*		if(x_vel <= 0.1 && y_vel <= 0.1)
+		command->set_veltangent(0.0); 
+		command->set_velnormal(0.0);
+		//if(x_vel <= 0.1 && y_vel <= 0.1)
 		command->set_velangular(-w_vel);
-		else */command->set_velangular(0.0);
+		//else command->set_velangular(0.0);
 		command->set_kickspeedx(0.0);
 		command->set_kickspeedz(0.0);
 		command->set_spinner(false);		
