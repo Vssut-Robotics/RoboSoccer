@@ -3,7 +3,7 @@
 class PlayFinder
 {
 public:
-	PlayFinder(arguments);
+	PlayFinder();
 	~PlayFinder();
 
 };

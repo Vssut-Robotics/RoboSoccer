@@ -3,15 +3,25 @@
 class Conditions
 {
 public:
-	Conditions(arguments);
+	Conditions();
 	~Conditions();
 	/*For Chip
 	1.iSDirectShotToGoal
-	2.iSDistanceCheapFeasible
+	2.iSDistanceChipFeasible
 	3.iSFastestWayToPass
 	*/
 	bool iSDirectShotToGoal(SSL_DetectionRobot tracking_robot,bool iSTeamYellow){
-
+		return iSInLos(tracking_robot,iSTeamYellow) && iSDistanceInThreshold(tracking_robot,iSTeamYellow);
+	}
+	//check if any robot is inside a radius of the bot
+	//wrong actually only need to check forward.
+	bool iSDistanceChipFeasible(SSL_DetectionRobot tracking_robot,bool iSTeamYellow){
+		bool ret = true;
+		for(int i=0;i<8;i++){
+			ret |= getDistance(tracking_robot,yellow_bot[i]) < 300.0;
+			ret |= getDistance(tracking_robot,blue_bot[i]) < 300.0;
+		}
+		return ret;
 	}
 	/*For Direct Goal
 	1.iSInLos
@@ -36,6 +46,16 @@ public:
 		}
 		return cnt<=2;
 	}
+	//don't use this condition very often
+	bool iSDistanceInThreshold(SSL_DetectionRobot tracking_robot,bool iSTeamYellow){
+		if(iSTeamYellow){
+			//Threshold x is less than +2000
+			return tracking_robot.x()>=2000 && tracking_robot.x()<=3500;
+		}
+		else{
+			return tracking_robot.x()<=-2000 && tracking_robot.x()>=-3500;
+		}
+	}
 	/*For Indirect Goal
 	1.NotInLos
 	2.iSInLosOfPassingBot
@@ -55,8 +75,6 @@ public:
 		Point polygon[] = {{tracking_robot.x(),y1},{passing_robot.x(),y2},{tracking_robot.x(),y3},{passing_robot.y(),y4}};
 		for(int i=0;i<8;i++){
 			ret |= isInsidePolygon(polygon,4,yellow_bot[i]);
-		}
-		for(int i=0;i<8;i++){
 			ret |= isInsidePolygon(polygon,4,blue_bot[i]);
 		}
 		return ret;
@@ -68,4 +86,12 @@ public:
 	4.IfNoShotEitherDirectOrIndirect
 	5.LimitingConditionForGeometry
 	*/
+	bool iSBothBotsPositionLessThanThreshold(SSL_DetectionRobot tracking_robot,SSL_DetectionRobot passing_robot,bool iSTeamYellow){
+		if(iSTeamYellow)
+			return tracking_robot.x()<=3500 && passing_robot.x()<=3500;
+		return tracking_robot.x()>=-3500 && passing_robot.x()>=-3500;
+	}
+	bool IfNoShotEitherDirectOrIndirect(SSL_DetectionRobot tracking_robot,SSL_DetectionRobot passing_robot,bool iSTeamYellow){
+		return NotInLos(tracking_robot,iSTeamYellow) && !iSBallPassable(tracking_robot,passing_robot,iSTeamYellow);
+	}
 };

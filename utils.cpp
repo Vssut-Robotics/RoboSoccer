@@ -36,6 +36,10 @@ void calcCoordinatesOfAllBots(SSL_DetectionFrame detection){
 	}
 }
 
+double getDistance(Point a,Point b){
+	return sqrt((b.first - a.first)*(b.first - a.first) + (b.second - a.second)*(b.second - a.second));
+}
+
 bool isInside0and1(double val){
 	return ((0 <= val) && (val <= 1));
 }

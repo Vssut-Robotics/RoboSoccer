@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <array>
+#include <algorithm>
 #include "timer.h"
 #include "grSim_Packet.pb.h"
 #include "grSim_Commands.pb.h"
@@ -12,7 +13,7 @@
 #include "messages_robocup_ssl_geometry.pb.h"
 #include "messages_robocup_ssl_detection.pb.h"
 
-#define INF 10000
+#define INF 100000
 const float PI = acos(-1.0);
 typedef pair<int,int> Point;
 typedef array<Point,8> Coordinates;
@@ -29,6 +30,7 @@ bool onSegment(Point p, Point q, Point r);
 int orientation(Point p, Point q, Point r);
 bool doIntersect(Point p1, Point q1, Point p2, Point q2);
 bool isInsidePolygon(Point polygon[], int n, Point p);
+double getDistance(Point a,Point b);
 
 class pid{
 	private:
