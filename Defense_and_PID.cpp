@@ -75,7 +75,7 @@ double calc_angle_between_lines(double x1,double y1,double x2,double y2){
 	return abs(angle1 - angle2);
 }
 
-int main(){	    
+int main(){
 	io_service io_service;
 	ip::udp::socket socket(io_service);
 	socket.open(ip::udp::v4());
