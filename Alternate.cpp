@@ -163,17 +163,15 @@ public:
 		double slope_bot2 = receiving_bot.y()/receiving_bot.x();
 		slope_bot2 = -1/slope_bot2;
 		double slope_ball = ball.y()/ball.x();
-		double determinant = -slope_bot2 + slope_ball;
+		double determinant = -slope_bot2 * ball.x() + ball.y();
 		double calc_x = 0.0,calc_y = 0.0;
 		if(determinant == 0){
 			calc_x = 0.0;
 			calc_y = 0.0;
 		}
 		else {
-			double c1 = receiving_bot.y() - slope_bot2 * receiving_bot.x();
-			double c2 = ball.y() - slope_ball * ball.x();
-			calc_x = c1 - c2;
-			calc_y = -slope_bot2 * c2 + slope_ball * c1;
+			calc_x = (receiving_bot.y() - slope_bot2 * receiving_bot.x())/determinant;
+			calc_y = ball.y() * (receiving_bot.y() - slope_bot2 * receiving_bot.x())/determinant;
 		}
 		//solving ends
 		if(calc_x != 0)
@@ -190,8 +188,6 @@ public:
 		printf("PidX: %3.2f  PidY: %3.2f  PidW: %3.2f ",x_vel,y_vel,w_vel);
 		command->set_id(3);
 		command->set_wheelsspeed(false);
-		x_vel = 0.0;
-		y_vel = 0.0;
 		if(angle>=180.0 && angle<=360.0)
 			command->set_veltangent(-x_vel); 
 		else command->set_veltangent(x_vel);
@@ -200,9 +196,10 @@ public:
 		else command->set_velnormal(y_vel);
 		if(abs(w_vel)<=0.50) w_vel = 0.0;
 		if(abs(x_vel) <= 0.1 && abs(y_vel) <= 0.2){
-		if(abs(ang - angle) < 180.0)
-		command->set_velangular(-w_vel);
-		else command->set_velangular(w_vel);}
+			if(abs(ang - angle) < 180.0)
+			command->set_velangular(-w_vel);
+			else command->set_velangular(w_vel);
+		}
 		else command->set_velangular(0.0);
 		command->set_kickspeedx(0.0);
 		command->set_kickspeedz(0.0);
@@ -336,15 +333,21 @@ int main(){
 		std::string data = messenger.Serialize();
 		//std::cout<<"str: "<<stream.str()<<"\n";	
 		socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);
-		if(abs(x_vel)<=0.15 && abs(y_vel)<=0.04 && abs(w_vel)<=0.50)
+		if(abs(x_vel)<=0.15 && abs(y_vel)<=0.04)
 			received = true;
 		std::cout<<"\n";		
 	}
 	//DataSend messenger(true);
-	messenger.Stop(2);
+/*	messenger.Stop(2);
 	data = messenger.Serialize();
 	socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);	
-	printf("receiving done!!\n");
+
+	//DataSend messenger(true);
+	messenger.Stop(3);
+	data = messenger.Serialize();
+	socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);	
+
+	printf("receiving done!!\n");*/
 
 	printf("Done!!\n");
     socket.close();
