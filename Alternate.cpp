@@ -1,4 +1,5 @@
 #include "utils.h"
+#include <thread>
 
 using namespace boost::asio;
 RoboCupSSLClient client(40102,"224.5.23.2","");
@@ -105,9 +106,7 @@ public:
 		angle = sending_bot.orientation() * 180/PI;
 		angle = fmod(angle+450.0,360.0);
 		w_vel = pid_W.calculate(ang,angle);
-//		printf("botX: %3.2f botY: %3.2f ballX: %3.2f ballY: %3.2f",ball.x()-(20*cos(theta)),ball.y()-(20*sin(theta)),sending_bot.x(),sending_bot.y());
 		printf("PidX: %3.2f  PidY: %3.2f  PidW: %3.2f ",x_vel,y_vel,w_vel);
-//		printf("W1: %3.2f ",angle);
 		command->set_id(3);
 		command->set_wheelsspeed(false);
 		if(angle>=180.0 && angle<=360.0)
@@ -137,9 +136,7 @@ public:
 		angle = sending_bot.orientation() * 180/PI;
 		angle = fmod(angle+450.0,360.0);
 		w_vel = pid_W.calculate(ang,angle);
-//		printf("botX: %3.2f botY: %3.2f ballX: %3.2f ballY: %3.2f",ball.x()-(20*cos(theta)),ball.y()-(20*sin(theta)),sending_bot.x(),sending_bot.y());
 		printf("PidX: %3.2f  PidY: %3.2f  PidW: %3.2f ",x_vel,y_vel,w_vel);
-//		printf("W1: %3.2f ",angle);
 		command->set_id(3);
 		command->set_wheelsspeed(false);
 		if(angle>=180.0 && angle<=360.0)
@@ -158,6 +155,59 @@ public:
 		command->set_kickspeedz(0.0);
 		command->set_spinner(true);
 		return command;		
+	}
+	grSim_Robot_Command* receive_pass(grSim_Robot_Command* command,SSL_DetectionFrame detection){
+		SSL_DetectionBall ball = detection.balls(0);
+		SSL_DetectionRobot receiving_bot = detection.robots_yellow(2);
+		//Solving the equation of two lines
+		double slope_bot2 = receiving_bot.y()/receiving_bot.x();
+		slope_bot2 = -1/slope_bot2;
+		double slope_ball = ball.y()/ball.x();
+		double determinant = -slope_bot2 + slope_ball;
+		double calc_x = 0.0,calc_y = 0.0;
+		if(determinant == 0){
+			calc_x = 0.0;
+			calc_y = 0.0;
+		}
+		else {
+			double c1 = receiving_bot.y() - slope_bot2 * receiving_bot.x();
+			double c2 = ball.y() - slope_ball * ball.x();
+			calc_x = c1 - c2;
+			calc_y = -slope_bot2 * c2 + slope_ball * c1;
+		}
+		//solving ends
+		if(calc_x != 0)
+			x_vel = pid_X.calculate(receiving_bot.x(),calc_x);
+		else x_vel = 0.0;
+		if(calc_y != 0)
+			y_vel = pid_Y.calculate(receiving_bot.y(),calc_y);
+		else y_vel = 0.0;
+		ang = calc_angle_between_points(ball.x(),ball.y(),receiving_bot.x(),receiving_bot.y());
+		angle = receiving_bot.orientation() * 180/PI;
+		angle = fmod(angle+450.0,360.0);
+		w_vel = pid_W.calculate(ang,angle);
+		printf("X: %3.2f  Y:%3.2f ",calc_x,calc_y);
+		printf("PidX: %3.2f  PidY: %3.2f  PidW: %3.2f ",x_vel,y_vel,w_vel);
+		command->set_id(3);
+		command->set_wheelsspeed(false);
+		x_vel = 0.0;
+		y_vel = 0.0;
+		if(angle>=180.0 && angle<=360.0)
+			command->set_veltangent(-x_vel); 
+		else command->set_veltangent(x_vel);
+		if(angle>=180.0 && angle<=360.0)
+			command->set_velnormal(-y_vel);
+		else command->set_velnormal(y_vel);
+		if(abs(w_vel)<=0.50) w_vel = 0.0;
+		if(abs(x_vel) <= 0.1 && abs(y_vel) <= 0.2){
+		if(abs(ang - angle) < 180.0)
+		command->set_velangular(-w_vel);
+		else command->set_velangular(w_vel);}
+		else command->set_velangular(0.0);
+		command->set_kickspeedx(0.0);
+		command->set_kickspeedz(0.0);
+		command->set_spinner(true);
+		return command;				
 	}
 };
 
@@ -264,6 +314,37 @@ int main(){
 	messenger.Stop(3);
 	data = messenger.Serialize();
 	socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);	
+	printf("Passing Done!!\n");
+
+	//receive ball from robot 3
+	bool received = false;
+	while(!received){
+		if (!client.receive(recieve_packet)){
+			printf("Connection to Server Unsuccessful!!\n");
+			return -1;
+		}
+		//printf("Client Successfully Connected\n");
+		if (!recieve_packet.has_detection()){
+			printf("Recieved Packet has no Detection Frame!!\n");
+			return -1;
+		}
+		detection = recieve_packet.detection();
+		DataSend messenger(true);//true to say that i am team Yellow
+		Alternate a;
+		grSim_Robot_Command* cmd = a.receive_pass(messenger.getCommands(),detection);
+		messenger.setCommand(cmd);
+		std::string data = messenger.Serialize();
+		//std::cout<<"str: "<<stream.str()<<"\n";	
+		socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);
+		if(abs(x_vel)<=0.15 && abs(y_vel)<=0.04 && abs(w_vel)<=0.50)
+			received = true;
+		std::cout<<"\n";		
+	}
+	//DataSend messenger(true);
+	messenger.Stop(2);
+	data = messenger.Serialize();
+	socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);	
+	printf("receiving done!!\n");
 
 	printf("Done!!\n");
     socket.close();
