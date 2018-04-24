@@ -157,6 +157,7 @@ public:
 		return command;		
 	}
 	grSim_Robot_Command* receive_pass(grSim_Robot_Command* command,SSL_DetectionFrame detection){
+		printf("receive pass called  ");
 		SSL_DetectionBall ball = detection.balls(0);
 		SSL_DetectionRobot receiving_bot = detection.robots_yellow(2);
 		//Solving the equation of two lines
@@ -186,7 +187,7 @@ public:
 		w_vel = pid_W.calculate(ang,angle);
 		printf("X: %3.2f  Y:%3.2f ",calc_x,calc_y);
 		printf("PidX: %3.2f  PidY: %3.2f  PidW: %3.2f ",x_vel,y_vel,w_vel);
-		command->set_id(3);
+		command->set_id(2);
 		command->set_wheelsspeed(false);
 		if(angle>=180.0 && angle<=360.0)
 			command->set_veltangent(-x_vel); 
@@ -195,13 +196,10 @@ public:
 			command->set_velnormal(-y_vel);
 		else command->set_velnormal(y_vel);
 		if(abs(w_vel)<=0.50) w_vel = 0.0;
-		if(abs(x_vel) <= 0.1 && abs(y_vel) <= 0.2){
-			if(abs(ang - angle) < 180.0)
-			command->set_velangular(-w_vel);
-			else command->set_velangular(w_vel);
-		}
-		else command->set_velangular(0.0);
-		command->set_kickspeedx(0.0);
+		if(abs(ang - angle) < 180.0)
+		command->set_velangular(-w_vel);
+		else command->set_velangular(w_vel);
+		command->set_kickspeedx(2.0);
 		command->set_kickspeedz(0.0);
 		command->set_spinner(true);
 		return command;				
@@ -254,6 +252,7 @@ int main(){
 	//rotate bot 3 towards 0,1 or 2
 	bool rotate_position = false;
 	while(!rotate_position){
+		printf("thread running\n");
 		if (!client.receive(recieve_packet)){
 			printf("Connection to Server Unsuccessful!!\n");
 			return -1;
@@ -275,6 +274,37 @@ int main(){
 			rotate_position = true;
 		std::cout<<"\n";		
 	}
+	std::thread bot_2([&]{//capture by reference implemented because it caused error in
+		// the use of socket.send command.
+		bool received = false;
+		while(!received){
+			if (!client.receive(recieve_packet)){
+				printf("Connection to Server Unsuccessful!!\n");
+				return -1;
+			}
+			//printf("Client Successfully Connected\n");
+			if (!recieve_packet.has_detection()){
+				printf("Recieved Packet has no Detection Frame!!\n");
+				return -1;
+			}
+			detection = recieve_packet.detection();
+			DataSend messenger(true);//true to say that i am team Yellow
+			Alternate a;
+			grSim_Robot_Command* cmd = a.receive_pass(messenger.getCommands(),detection);
+			messenger.setCommand(cmd);
+			std::string data = messenger.Serialize();
+			//std::cout<<"str: "<<stream.str()<<"\n";	
+			socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);
+			if(abs(x_vel)<=0.15 && abs(y_vel)<=0.04)
+				received = true;
+			std::cout<<"\n";		
+		}
+		//DataSend messenger(true);
+		messenger.Stop(2);
+		data = messenger.Serialize();
+		socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);			
+		printf("Thread Execution Complete!!\n");
+	});//Start the thread for bot 2
 	//DataSend messenger(true);
 	messenger.Stop(3);
 	data = messenger.Serialize();
@@ -313,41 +343,7 @@ int main(){
 	socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);	
 	printf("Passing Done!!\n");
 
-	//receive ball from robot 3
-	bool received = false;
-	while(!received){
-		if (!client.receive(recieve_packet)){
-			printf("Connection to Server Unsuccessful!!\n");
-			return -1;
-		}
-		//printf("Client Successfully Connected\n");
-		if (!recieve_packet.has_detection()){
-			printf("Recieved Packet has no Detection Frame!!\n");
-			return -1;
-		}
-		detection = recieve_packet.detection();
-		DataSend messenger(true);//true to say that i am team Yellow
-		Alternate a;
-		grSim_Robot_Command* cmd = a.receive_pass(messenger.getCommands(),detection);
-		messenger.setCommand(cmd);
-		std::string data = messenger.Serialize();
-		//std::cout<<"str: "<<stream.str()<<"\n";	
-		socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);
-		if(abs(x_vel)<=0.15 && abs(y_vel)<=0.04)
-			received = true;
-		std::cout<<"\n";		
-	}
-	//DataSend messenger(true);
-/*	messenger.Stop(2);
-	data = messenger.Serialize();
-	socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);	
-
-	//DataSend messenger(true);
-	messenger.Stop(3);
-	data = messenger.Serialize();
-	socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);	
-
-	printf("receiving done!!\n");*/
+	printf("receiving done!!\n");
 
 	printf("Done!!\n");
     socket.close();
