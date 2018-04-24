@@ -155,3 +155,9 @@ bool isInsidePolygon(Point polygon[], int n, Point p)
 	// Return true if count is odd, false otherwise
 	return count&1; // Same as (count%2 == 1)
 }
+
+Point generateRandomPointinRange(int min_x,int max_x,int min_y,int max_y){
+	Point a;
+	printf("doind\n");
+	return a;
+}

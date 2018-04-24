@@ -8,6 +8,7 @@
 #include <cmath>
 #include <array>
 #include <algorithm>
+#include <random>
 #include "timer.h"
 #include "boost/asio.hpp"
 #include "grSim_Packet.pb.h"
@@ -37,6 +38,7 @@ int orientation(Point p, Point q, Point r);
 bool doIntersect(Point p1, Point q1, Point p2, Point q2);
 bool isInsidePolygon(Point polygon[], int n, Point p);
 double getDistance(Point a,Point b);
+Point generateRandomPointinRange(int min_x,int max_x,int min_y,int max_y);
 
 class pid{
 	private:
