@@ -75,13 +75,14 @@ public:
 	//Start with kick off from formation for yellow team
 	//After kickoff select positions for 2 bots and do an indirect goal
 	//Return to previous positions and try kick-off + direct shot
-	grSim_Robot_Command* indirect_goal(grSim_Robot_Command* command,SSL_DetectionFrame detection){
+	grSim_Robot_Command* indirect_goal(grSim_Robot_Command* command,SSL_DetectionFrame detection,int BotID){
 		SSL_DetectionBall ball = detection.balls(0);
-		SSL_DetectionRobot sending_bot = detection.robots_yellow(3),receiving_bot = detection.robots_yellow(2);
-		double theta = calc_angle_between_points(-4000.0,0.0,ball.x(),ball.y());
-		x_vel = pid_X.calculate(sending_bot.x(),ball.x()+105);
-		y_vel = pid_Y.calculate(sending_bot.y(),ball.y()+20);
-		ang = calc_angle_between_points(sending_bot.x(),sending_bot.y(),-4000.0,0.0);
+		SSL_DetectionRobot sending_bot = detection.robots_yellow(3),receiving_bot;
+		receiving_bot = detection.robots_yellow(BotID);
+		double theta = calc_angle_between_points(receiving_bot.x(),receiving_bot.y(),ball.x(),ball.y());
+		x_vel = pid_X.calculate(sending_bot.x(),ball.x()-(295*cos(360-theta)));
+		y_vel = pid_Y.calculate(sending_bot.y(),ball.y()+(295*cos(360-theta)));
+		ang = calc_angle_between_points(sending_bot.x(),sending_bot.y(),receiving_bot.x(),receiving_bot.y());
 		angle = sending_bot.orientation() * 180/PI;
 		angle = fmod(angle+450.0,360.0);
 		w_vel = pid_W.calculate(ang,angle);
@@ -103,9 +104,9 @@ public:
 		command->set_spinner(false);
 		return command;		
 	}
-	grSim_Robot_Command* send_bot2(grSim_Robot_Command* command,SSL_DetectionFrame detection,Point Bot2){
+	grSim_Robot_Command* send_bot(grSim_Robot_Command* command,SSL_DetectionFrame detection,Point Bot2,int BotID){
 		SSL_DetectionBall ball = detection.balls(0);
-		SSL_DetectionRobot sending_bot = detection.robots_yellow(2),Bot3 = detection.robots_yellow(3);
+		SSL_DetectionRobot sending_bot = detection.robots_yellow(BotID),Bot3 = detection.robots_yellow(3);
 		x_vel = pid_X.calculate(sending_bot.x(),Bot2.first);
 		y_vel = pid_Y.calculate(sending_bot.y(),Bot2.second);
 		ang = calc_angle_between_points(sending_bot.x(),sending_bot.y(),Bot3.x(),Bot3.y());
@@ -114,7 +115,7 @@ public:
 		w_vel = pid_W.calculate(ang,angle);
 		//w_vel = 0.0;
 		printf("PidX: %3.2f  PidY: %3.2f  PidW: %3.2f ",x_vel,y_vel,w_vel);
-		command->set_id(2);
+		command->set_id(BotID);
 		command->set_wheelsspeed(false);
 		if(angle>=180.0 && angle<=360.0)
 			command->set_veltangent(-x_vel); 
@@ -146,8 +147,6 @@ int main(){
     printf("Connected\n");
 
     std::thread b1([&]{
-    //send bot 3 to the center then stop
-    mtx.lock();
     printf("thread 1 entered\n");
     bool reached = false;
     Point Bot2;
@@ -167,11 +166,13 @@ int main(){
 		detection = recieve_packet.detection();
 		DataSend messenger(true);//true to say that i am team Yellow
 		Alternate a;
-		grSim_Robot_Command* cmd = a.send_bot2(messenger.getCommands(),detection,Bot2);
+		grSim_Robot_Command* cmd = a.send_bot(messenger.getCommands(),detection,Bot2,2);
 		messenger.setCommand(cmd);
 		std::string data = messenger.Serialize();
 		//std::cout<<"str: "<<stream.str()<<"\n";	
+		mtx.lock();
 		socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);
+		mtx.unlock();
 		if(abs(x_vel)<=0.02 && abs(y_vel)<=0.02)
 			reached = true;
 		std::cout<<"\n";
@@ -179,13 +180,56 @@ int main(){
 	DataSend messenger(true);//true to say that i am team Yellow
 	messenger.Stop(2);
 	std::string data = messenger.Serialize();
+	mtx.lock();
 	socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);
-	printf("thread execution complete!!\n");
 	mtx.unlock();	    	
+	printf("thread 1 execution complete!!\n");
     });
-    
+
+    std::thread b2([&]{
+    printf("thread 2 entered\n");
+    bool reached = false;
+    Point Bot2;
+	Bot2.first = -3000 + rand()%1000;
+	Bot2.second = 2200 - rand()%1000;
+    while(!reached){
+    printf("thread 2 running\n");
+		if (!client.receive(recieve_packet)){
+			printf("Connection to Server Unsuccessful!!\n");
+			exit(-1);
+		}
+		//printf("Client Successfully Connected\n");
+		if (!recieve_packet.has_detection()){
+			printf("Recieved Packet has no Detection Frame!!\n");
+			exit(-1);
+		}
+		detection = recieve_packet.detection();
+		DataSend messenger(true);//true to say that i am team Yellow
+		Alternate a;
+		grSim_Robot_Command* cmd = a.send_bot(messenger.getCommands(),detection,Bot2,0);
+		messenger.setCommand(cmd);
+		std::string data = messenger.Serialize();
+		//std::cout<<"str: "<<stream.str()<<"\n";	
+		mtx.lock();
+		socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);
+		mtx.unlock();
+		if(abs(x_vel)<=0.02 && abs(y_vel)<=0.02)
+			reached = true;
+		std::cout<<"\n";
+	}
+	DataSend messenger(true);//true to say that i am team Yellow
+	messenger.Stop(0);
+	std::string data = messenger.Serialize();
+	mtx.lock();
+	socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);
+	mtx.unlock();	    	
+	printf("thread 2 execution complete!!\n");
+    });
+	//Now koin both the threads
+	b1.join();
+	b2.join();
     //send bot 3 to the center then stop
-/*    bool goal_flag = false;
+    bool goal_flag = false;
     while(!goal_flag){
 		if (!client.receive(recieve_packet)){
 			printf("Connection to Server Unsuccessful!!\n");
@@ -199,7 +243,11 @@ int main(){
 		detection = recieve_packet.detection();
 		DataSend messenger(true);//true to say that i am team Yellow
 		Alternate a;
-		grSim_Robot_Command* cmd = a.indirect_goal(messenger.getCommands(),detection);
+		double dist1 = sqrt(pow(detection.robots_yellow(0).x() - detection.robots_yellow(3).x(),2)+pow(detection.robots_yellow(0).y() - detection.robots_yellow(3).y(),2));
+		double dist2 = sqrt(pow(detection.robots_yellow(2).x() - detection.robots_yellow(3).x(),2)+pow(detection.robots_yellow(2).y() - detection.robots_yellow(3).y(),2));
+		int BotID = 0;
+		if(dist1 > dist2) BotID = 2;		
+		grSim_Robot_Command* cmd = a.indirect_goal(messenger.getCommands(),detection,BotID);
 		messenger.setCommand(cmd);
 		std::string data = messenger.Serialize();
 		//std::cout<<"str: "<<stream.str()<<"\n";	
@@ -214,8 +262,7 @@ int main(){
 	messenger.Stop(3);
 	std::string data = messenger.Serialize();
 	socket.send_to(buffer(data,int(data.length())),remote_endpoint,0,err);	
-	printf("kickoff bot in position\n");*/
-	b1.join();
+	printf("kickoff bot in position\n");	
 	printf("Done!!\n");
     socket.close();
     return 0;
